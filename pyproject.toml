@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "getterdone"
+version = "1.0.0"
+description = "Official Python SDK for the GetterDone Agent API"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "GetterDone Inc.", email = "support@getterdone.ai" }]
+keywords = ["ai", "agents", "tasks", "gig-economy", "mcp", "langchain"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.9"
+dependencies = []  # zero required dependencies — uses stdlib urllib
+
+[project.optional-dependencies]
+langchain = ["langchain-core>=0.3", "langchain>=0.3"]
+crewai = ["crewai>=0.95"]
+dev = ["pytest>=8", "pytest-mock>=3", "mypy>=1.9", "ruff>=0.4"]
+
+[project.urls]
+Homepage = "https://getterdone.ai"
+Repository = "https://github.com/getterdoneinc/getterdone-python"
+Documentation = "https://getterdone.ai/docs"
+"Bug Tracker" = "https://github.com/getterdoneinc/getterdone-python/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["getterdone*"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
