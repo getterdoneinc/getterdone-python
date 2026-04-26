@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "getterdone"
-version = "1.0.0"
+version = "1.1.0"
 description = "Official Python SDK for the GetterDone Agent API"
 readme = "README.md"
 license = { text = "MIT" }

@@ -35,6 +35,7 @@ task = gd.create_task(
     description="Walk to 42 Main St and photograph the entrance. Show sign and hours.",
     reward=8.00,
     location={"lat": 40.7128, "lng": -74.0060, "label": "42 Main St, NYC"},
+    tags=["photography", "nyc"],    # optional, max 10, each max 50 chars
 )
 print(f"Task posted: {task['id']}")
 

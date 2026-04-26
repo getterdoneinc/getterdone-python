@@ -9,26 +9,44 @@ Quick start:
     gd.create_task(title="...", description="...", reward=8.00, location={...})
 """
 
-from .client import GetterDone
+from .client import GetterDone, CancelTaskResult, ApproveTaskResult
 from .exceptions import (
     GetterDoneError,
     AuthenticationError,
     InsufficientBalanceError,
-    TaskNotFoundError,
-    AgentNameTakenError,
-    RateLimitError,
     FundingRequiredError,
+    TaskNotFoundError,
+    ConflictError,
+    AgentNameTakenError,  # deprecated alias for ConflictError
+    RateLimitError,
+    ValidationError,
+    TaskStateError,
+    RatingWindowClosedError,
 )
+from .webhooks import verify_webhook_signature
+from .types import BalanceResult
 
 __all__ = [
+    # Client
     "GetterDone",
+    # Standalone helpers
+    "verify_webhook_signature",
+    # Exceptions
+    "CancelTaskResult",
+    "ApproveTaskResult",
     "GetterDoneError",
     "AuthenticationError",
     "InsufficientBalanceError",
-    "TaskNotFoundError",
-    "AgentNameTakenError",
-    "RateLimitError",
     "FundingRequiredError",
+    "TaskNotFoundError",
+    "ConflictError",
+    "AgentNameTakenError",  # deprecated alias — use ConflictError
+    "RateLimitError",
+    "ValidationError",
+    "TaskStateError",
+    "RatingWindowClosedError",
+    "FundingRequiredError",
+    "BalanceResult",
 ]
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
