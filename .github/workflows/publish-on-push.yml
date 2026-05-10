@@ -1,0 +1,59 @@
+name: Publish to PyPI on push
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '.github/**'
+
+concurrency:
+  group: publish-on-push-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install build deps and package
+        run: |
+          python -m pip install --upgrade pip build twine
+          pip install -e .[dev]
+
+      - name: Run tests
+        run: pytest tests/
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump patch version
+        run: |
+          set -euo pipefail
+          CURRENT=$(awk -F'"' '/^version = "/ {print $2; exit}' pyproject.toml)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          NEW="$MAJOR.$MINOR.$((PATCH + 1))"
+          sed -i -E "s/^version = \"$CURRENT\"/version = \"$NEW\"/" pyproject.toml
+          git add pyproject.toml
+          git commit -m "chore: release v$NEW"
+          git tag "v$NEW"
+
+      - name: Build distribution
+        run: python -m build
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: twine upload dist/*
+
+      - name: Push version bump and tag
+        run: git push --follow-tags
