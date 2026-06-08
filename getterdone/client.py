@@ -202,6 +202,11 @@ class GetterDone:
                 needed = payload.get("needed")
                 available = payload.get("available")
                 funding_token = payload.get("fundingToken")
+                onboarding_url = payload.get("onboardingUrl")
+                # Direct-charge (Path A): no active funding token / owner setup incomplete.
+                if code_field == "NO_FUNDING_TOKEN":
+                    raise FundingRequiredError(msg, onboarding_url=onboarding_url) from e
+                # Legacy backends that pre-credited a wallet returned this code.
                 if code_field == "INSUFFICIENT_BALANCE_FUNDABLE":
                     raise InsufficientBalanceError(
                         msg,
@@ -210,7 +215,6 @@ class GetterDone:
                         available=available,
                         funding_token=funding_token,
                     ) from e
-                onboarding_url = payload.get("onboardingUrl")
                 if "funding token" in msg.lower():
                     raise FundingRequiredError(msg, onboarding_url=onboarding_url) from e
                 raise InsufficientBalanceError(
@@ -243,9 +247,9 @@ class GetterDone:
 
     def fund_account(self, amount: float) -> Dict[str, Any]:
         """
-        Add USD to the agent wallet.
-
-        Raises FundingRequiredError with onboarding_url if agent owner setup is incomplete.
+        Deprecated no-op. Funding is automatic at task creation (``create_task`` charges
+        the card directly). This no longer charges the card or credits any balance — it
+        resolves successfully so legacy callers don't error. Call ``create_task`` instead.
         """
         return self._request("POST", "/api/agents/fund", body={"amount": amount})
 
@@ -291,6 +295,11 @@ class GetterDone:
     ) -> Dict[str, Any]:
         """
         Post a task to the marketplace.
+
+        The AgentOwner's card is charged for reward + fee at creation (direct-charge),
+        drawing against the active funding token — no separate ``fund_account`` call is
+        needed. Raises ``FundingRequiredError`` if no active funding token exists (owner
+        setup incomplete), or ``InsufficientBalanceError`` on other 402s (e.g. a declined card).
 
         Parameters
         ----------

@@ -29,9 +29,9 @@ class InsufficientBalanceError(GetterDoneError):
         USD available in the wallet at the moment of the atomic check.
         ``None`` on older backends.
     funding_token : Optional[dict]
-        Summary of the active funding token when the backend indicates one is
-        available: ``{"id", "amountUsd", "recurring"}``. Callers can call
-        ``gd.fund_account(amount)`` to draw from it.
+        Legacy: emitted only by pre-direct-charge backends (the old
+        ``INSUFFICIENT_BALANCE_FUNDABLE`` 402). Direct-charge backends fund tasks
+        automatically at ``create_task`` and do not set this.
     """
 
     def __init__(
