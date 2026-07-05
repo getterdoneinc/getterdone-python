@@ -30,6 +30,8 @@ from getterdone import (
     FundingRequiredError,
     ConflictError,
     AgentNameTakenError,
+    RateLimitError,
+    TaskLimitError,
     verify_webhook_signature,
 )
 
@@ -197,6 +199,49 @@ class TestConflictError:
         with pytest.raises(ConflictError) as exc_info:
             gd._request("POST", "/api/agents/register", body={"name": "bot"})
         assert exc_info.value.status_code == 409
+
+
+# ─── create_task task-count caps (429) ───────────────────────────────────────
+
+class TestTaskCountCaps:
+    """A 429 carrying a durable cap code must raise TaskLimitError with that code."""
+
+    def test_task_limit_error_is_a_rate_limit_error(self) -> None:
+        # Subclass so existing `except RateLimitError` / `except GetterDoneError` still catch it.
+        assert issubclass(TaskLimitError, RateLimitError)
+        assert issubclass(TaskLimitError, GetterDoneError)
+
+    def test_open_task_limit_raises_task_limit_error(self, mocker: Any) -> None:
+        gd = _make_client()
+        mocker.patch.object(gd, "_get_token", return_value="fake-token")
+        err = _http_error(mocker, 429, {"error": "Open-task limit reached", "code": "OPEN_TASK_LIMIT"})
+        mocker.patch("urllib.request.urlopen", side_effect=[err])
+
+        with pytest.raises(TaskLimitError) as exc_info:
+            gd._request("POST", "/api/tasks", body={"title": "x"})
+        assert exc_info.value.code == "OPEN_TASK_LIMIT"
+        assert exc_info.value.status_code == 429
+
+    def test_creation_limit_raises_task_limit_error(self, mocker: Any) -> None:
+        gd = _make_client()
+        mocker.patch.object(gd, "_get_token", return_value="fake-token")
+        err = _http_error(mocker, 429, {"error": "Task creation rate limit", "code": "TASK_CREATION_LIMIT"})
+        mocker.patch("urllib.request.urlopen", side_effect=[err])
+
+        with pytest.raises(TaskLimitError) as exc_info:
+            gd._request("POST", "/api/tasks", body={"title": "x"})
+        assert exc_info.value.code == "TASK_CREATION_LIMIT"
+
+    def test_generic_429_stays_rate_limit_error(self, mocker: Any) -> None:
+        gd = _make_client()
+        mocker.patch.object(gd, "_get_token", return_value="fake-token")
+        err = _http_error(mocker, 429, {"error": "Too many requests"})
+        mocker.patch("urllib.request.urlopen", side_effect=[err])
+
+        with pytest.raises(RateLimitError) as exc_info:
+            gd._request("GET", "/api/tasks")
+        # A plain rate limit is NOT the more specific TaskLimitError.
+        assert not isinstance(exc_info.value, TaskLimitError)
 
 
 # ─── approve_task 402 retry ──────────────────────────────────────────────────

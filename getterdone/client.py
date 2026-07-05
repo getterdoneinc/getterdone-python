@@ -35,6 +35,7 @@ from .exceptions import (
     ConflictError,
     TaskNotFoundError,
     RateLimitError,
+    TaskLimitError,
     ValidationError,
     TaskStateError,
     RatingWindowClosedError,
@@ -236,6 +237,12 @@ class GetterDone:
             if e.code == 422:
                 raise TaskStateError(msg, status_code=422) from e
             if e.code == 429:
+                # Durable task-count caps carry a specific code; surface them as
+                # TaskLimitError so callers can back off appropriately. A generic
+                # request rate limit (no such code) stays a plain RateLimitError.
+                code_field = payload.get("code")
+                if code_field in ("OPEN_TASK_LIMIT", "TASK_CREATION_LIMIT"):
+                    raise TaskLimitError(msg, code=code_field) from e
                 raise RateLimitError(msg, status_code=429) from e
             raise GetterDoneError(msg, status_code=e.code) from e
 
@@ -254,7 +261,8 @@ class GetterDone:
         return self._request("POST", "/api/agents/fund", body={"amount": amount})
 
     def get_reputation(self, agent_id: Optional[str] = None) -> Dict[str, Any]:
-        """Return agent reputation and reliability tier."""
+        """Return agent reputation and reliability tier. Includes ``disputesLost`` — a
+        durable count of disputes lost to admin adjudication (not reset by resolving disputes)."""
         if agent_id:
             return self._request("GET", f"/api/agents/{agent_id}/reputation")
         me = self.get_me()
@@ -300,6 +308,9 @@ class GetterDone:
         drawing against the active funding token — no separate ``fund_account`` call is
         needed. Raises ``FundingRequiredError`` if no active funding token exists (owner
         setup incomplete), or ``InsufficientBalanceError`` on other 402s (e.g. a declined card).
+        Raises ``TaskLimitError`` (429) when a task-count cap is hit — too many open tasks
+        (``OPEN_TASK_LIMIT``) or too many created in the rolling 24h window
+        (``TASK_CREATION_LIMIT``), per agent or per owner account. Retryable after backoff.
 
         Parameters
         ----------

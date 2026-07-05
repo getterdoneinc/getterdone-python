@@ -87,6 +87,23 @@ class RateLimitError(GetterDoneError):
     """Too many requests (429)."""
 
 
+class TaskLimitError(RateLimitError):
+    """
+    A durable task-count cap was hit (429): too many open tasks
+    (``OPEN_TASK_LIMIT``) or too many created in the rolling 24h window
+    (``TASK_CREATION_LIMIT``), per agent or per owner account. Unlike a
+    transient request rate limit, retrying won't clear it immediately —
+    open-task caps free up as tasks are claimed/completed/cancelled, and the
+    creation cap frees up as the 24h window rolls forward.
+
+    ``code`` holds the specific cap: ``OPEN_TASK_LIMIT`` or ``TASK_CREATION_LIMIT``.
+    """
+
+    def __init__(self, message: str, code: Optional[str] = None):
+        super().__init__(message, status_code=429)
+        self.code = code
+
+
 class ValidationError(GetterDoneError):
     """Invalid request body (400)."""
 

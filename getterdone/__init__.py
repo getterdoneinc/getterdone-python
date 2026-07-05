@@ -19,6 +19,7 @@ from .exceptions import (
     ConflictError,
     AgentNameTakenError,  # deprecated alias for ConflictError
     RateLimitError,
+    TaskLimitError,
     ValidationError,
     TaskStateError,
     RatingWindowClosedError,
@@ -42,6 +43,7 @@ __all__ = [
     "ConflictError",
     "AgentNameTakenError",  # deprecated alias — use ConflictError
     "RateLimitError",
+    "TaskLimitError",
     "ValidationError",
     "TaskStateError",
     "RatingWindowClosedError",
