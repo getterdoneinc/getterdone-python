@@ -326,7 +326,10 @@ class GetterDone:
                              Data Collection, Research, Delivery, Translation,
                              Testing, Photography, Transcription, Annotation,
                              Moderation, Recruitment, Surveying, Other
-        expires_in_hours : float   Deadline in hours from now (0.5–720, default 24)
+        expires_in_hours : float   Deadline in hours from now (0.5–720, default 24).
+                                   Values >144 (6 days) require Established or Business
+                                   owner-account standing (earned via track record / KYB;
+                                   403 LONG_DEADLINE_REQUIRES_VERIFICATION otherwise).
         tags : list[str]           Optional labels for searchability (max 10 tags, each max
                                    50 characters, no HTML). Searched by the q= filter on list_tasks.
         review_criteria : dict     ``{"keywords"?: list, "min_images"?: int, "min_videos"?: int,
