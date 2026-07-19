@@ -30,6 +30,14 @@ jobs:
           python -m pip install --upgrade pip build twine
           pip install -e .[dev]
 
+      - name: Audit dependencies (pip-audit)
+        # Counterpart of the npm high/critical gate on the node/mcp repos.
+        # pip-audit has no severity threshold — it fails on ANY known vuln in
+        # the installed environment (slightly stricter than the npm gate).
+        run: |
+          python -m pip install pip-audit
+          pip-audit
+
       - name: Run tests
         run: pytest tests/
 

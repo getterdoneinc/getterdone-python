@@ -1,0 +1,33 @@
+name: Dependency audit
+
+# Counterpart of the npm audit gate on the node/mcp repos. pip-audit fails on
+# ANY known vulnerability in the installed environment (it has no severity
+# threshold — slightly stricter than the npm high/critical gate). The publish
+# workflow runs this before publishing; this standalone run adds a weekly
+# sweep so CVEs disclosed between releases surface as failing runs.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install package + audit tool
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev] pip-audit
+
+      - name: Audit dependencies
+        run: pip-audit
