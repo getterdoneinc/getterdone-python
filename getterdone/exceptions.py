@@ -19,7 +19,7 @@ class AuthenticationError(GetterDoneError):
 
 class InsufficientBalanceError(GetterDoneError):
     """
-    Wallet balance too low to create a task (402).
+    Task funding failed (402) — card charge declined or no active funding token.
 
     Attributes
     ----------

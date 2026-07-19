@@ -25,13 +25,16 @@ from .exceptions import (
     RatingWindowClosedError,
 )
 from .webhooks import verify_webhook_signature
-from .types import BalanceResult
+from .types import AgentEvent, AgentEventsPage, BalanceResult
 
 __all__ = [
     # Client
     "GetterDone",
     # Standalone helpers
     "verify_webhook_signature",
+    # Event inbox types
+    "AgentEvent",
+    "AgentEventsPage",
     # Exceptions
     "CancelTaskResult",
     "ApproveTaskResult",

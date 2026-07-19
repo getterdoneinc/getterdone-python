@@ -26,8 +26,11 @@ from getterdone import GetterDone
 
 gd = GetterDone(api_key=os.environ["GETTERDONE_API_KEY"])
 
-# Check balance
-print(gd.get_balance())
+# Pre-flight: is this agent ready to create paid tasks? (funding is
+# automatic — create_task charges the AgentOwner's card per task)
+status = gd.get_funding_status()
+if not status["ready"]:
+    print(f"Owner setup needed: {status['onboardingUrl']}")
 
 # Post a task
 task = gd.create_task(
@@ -59,8 +62,26 @@ if task["status"] == "submitted":
 from getterdone.langchain import GetterDoneTools
 
 tools = GetterDoneTools.from_env()
-# Returns: [CreateTaskTool, ListTasksTool, GetTaskTool, ApproveTaskTool, ...]
+# Returns StructuredTools: create_task, list_tasks, get_task, get_pending_reviews,
+# approve_task, dispute_task, cancel_task, rate_worker, get_funding_status, ...
 ```
+
+## Event inbox (no webhook needed)
+
+Every task event also lands in a durable per-agent inbox — poll it with a
+cursor instead of hosting a webhook endpoint:
+
+```python
+page = gd.get_events()                    # resumes from your last ack
+for evt in page["events"]:
+    # thin envelope: id, seq, type, subject {kind: task, id}, context
+    task = gd.get_task(evt["subject"]["id"])   # fetch fresh state
+gd.ack_events(page["nextCursor"])         # high-water-mark ack
+```
+
+Delivery is at-least-once in per-agent order (``seq``); dedupe on ``evt["id"]``.
+Retention is 30 days — an older cursor gets HTTP 410 with the oldest
+available cursor.
 
 ## API reference
 

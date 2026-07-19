@@ -5,7 +5,6 @@ Usage:
     from getterdone import GetterDone
 
     gd = GetterDone(api_key=os.environ["GETTERDONE_API_KEY"])
-    balance = gd.get_balance()
     task = gd.create_task(
         title="Photograph storefront at 42 Main St",
         description="Take a clear photo of the entrance sign and posted hours.",
@@ -26,7 +25,7 @@ import urllib.error
 import urllib.parse
 import json as _json
 
-from .types import BalanceResult
+from .types import BalanceResult, FundingStatus
 from .exceptions import (
     GetterDoneError,
     AuthenticationError,
@@ -249,8 +248,18 @@ class GetterDone:
     # ─── Agent ────────────────────────────────────────────────────────────────
 
     def get_balance(self) -> BalanceResult:
-        """Return current wallet balance and pending escrow."""
+        """Return the legacy wallet balance (informational) and pending escrow."""
         return self._request("GET", "/api/agents/balance")
+
+    def get_funding_status(self) -> FundingStatus:
+        """Pre-flight readiness check before creating paid tasks.
+
+        A successful call proves credentials are valid; ``ready: True`` means the
+        Agent Owner setup is complete (KYC + vaulted card + active funding token)
+        and ``create_task`` will not fail with 402 NO_FUNDING_TOKEN. When not
+        ready, surface ``onboardingUrl`` to the owner.
+        """
+        return self._request("GET", "/api/agents/funding-status")
 
     def fund_account(self, amount: float) -> Dict[str, Any]:
         """
@@ -287,6 +296,40 @@ class GetterDone:
         """Return the current webhook configuration."""
         return self._request("GET", "/api/agents/webhooks")
 
+    # ─── Event Inbox (RFC-001) ────────────────────────────────────────────────
+
+    def get_events(
+        self,
+        cursor: Optional[int] = None,
+        limit: Optional[int] = None,
+        types: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Poll the durable event inbox.
+
+        Omit ``cursor`` to resume from the last acked cursor (unacked events
+        re-appear — deduplicate on ``event["id"]``). Process the batch, then
+        call :meth:`ack_events` with the returned ``nextCursor``. Events are
+        thin envelopes — fetch fresh task state with :meth:`get_task`.
+        A 410 means the cursor predates the 30-day retention window; resume
+        from the ``oldestAvailableCursor`` in the error response.
+        """
+        params: Dict[str, Any] = {}
+        if cursor is not None:
+            params["cursor"] = cursor
+        if limit is not None:
+            params["limit"] = limit
+        if types:
+            params["types"] = ",".join(types)
+        return self._request("GET", "/api/agents/events", params=params or None)
+
+    def ack_events(self, cursor: int) -> Dict[str, Any]:
+        """Acknowledge inbox events up to ``cursor`` (high-water mark).
+
+        Everything with ``seq <= cursor`` is marked consumed. Monotonic —
+        acking a lower cursor than before is a harmless no-op.
+        """
+        return self._request("POST", "/api/agents/events/ack", body={"cursor": cursor})
+
     # ─── Tasks ────────────────────────────────────────────────────────────────
 
     def create_task(
@@ -304,9 +347,10 @@ class GetterDone:
         """
         Post a task to the marketplace.
 
-        The AgentOwner's card is charged for reward + fee at creation (direct-charge),
-        drawing against the active funding token — no separate ``fund_account`` call is
-        needed. Raises ``FundingRequiredError`` if no active funding token exists (owner
+        The AgentOwner's card is AUTHORIZED for reward + fee at creation (deadlines
+        ≤6 days; captured when the worker submits proof — a task that ends first was
+        never charged), drawing against the active funding token — no separate
+        ``fund_account`` call is needed. Raises ``FundingRequiredError`` if no active funding token exists (owner
         setup incomplete), or ``InsufficientBalanceError`` on other 402s (e.g. a declined card).
         Raises ``TaskLimitError`` (429) when a task-count cap is hit — too many open tasks
         (``OPEN_TASK_LIMIT``) or too many created in the rolling 24h window
@@ -451,7 +495,7 @@ class GetterDone:
         This action is **irreversible**. Always present proofOfWork to the user
         before calling this method.
 
-        On a transient 402 (balance or funding not yet settled) the call is
+        On a transient 402 (card charge declined or funding token not yet settled) the call is
         retried once after a 1-second pause.  A second 402 raises
         ``InsufficientBalanceError`` or ``FundingRequiredError`` as appropriate.
         Returns
