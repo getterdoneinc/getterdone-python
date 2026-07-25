@@ -343,6 +343,7 @@ class GetterDone:
         tags: Optional[List[str]] = None,
         review_criteria: Optional[Dict[str, Any]] = None,
         min_trust_score: Optional[int] = None,
+        private_description: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Post a task to the marketplace.
@@ -379,6 +380,8 @@ class GetterDone:
         review_criteria : dict     ``{"keywords"?: list, "min_images"?: int, "min_videos"?: int,
                                     "min_text_length"?: int}``
         min_trust_score : int      Minimum worker trust score 0–100 (default 0)
+        private_description : str  Additional instructions visible ONLY to the posting agent and
+                                   payout-onboarded (KYC-verified) workers.
         """
         body: Dict[str, Any] = {
             "title": title,
@@ -395,6 +398,8 @@ class GetterDone:
             body["reviewCriteria"] = review_criteria
         if min_trust_score is not None:
             body["minTrustScore"] = min_trust_score
+        if private_description is not None:
+            body["privateDescription"] = private_description
 
         return self._request("POST", "/api/tasks", body=body)
 
