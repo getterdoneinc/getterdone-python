@@ -46,16 +46,30 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Bump patch version
+      # A sync can carry an intentional minor/major bump from the monorepo;
+      # publish that version as-is. Only auto patch-bump when the current
+      # version is already on PyPI (mirror-local hotfixes, doc-only syncs).
+      # Tags are annotated: `git push --follow-tags` silently skips
+      # lightweight tags, which is why the mirror historically had none.
+      - name: Bump patch version if current version is already published
         run: |
           set -euo pipefail
           CURRENT=$(awk -F'"' '/^version = "/ {print $2; exit}' pyproject.toml)
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
-          NEW="$MAJOR.$MINOR.$((PATCH + 1))"
-          sed -i -E "s/^version = \"$CURRENT\"/version = \"$NEW\"/" pyproject.toml
-          git add pyproject.toml
-          git commit -m "chore: release v$NEW"
-          git tag "v$NEW"
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' "https://pypi.org/pypi/getterdone/$CURRENT/json")
+          if [ "$STATUS" = "200" ]; then
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+            NEW="$MAJOR.$MINOR.$((PATCH + 1))"
+            sed -i -E "s/^version = \"$CURRENT\"/version = \"$NEW\"/" pyproject.toml
+            git add pyproject.toml
+            git commit -m "chore: release v$NEW"
+            git tag -a "v$NEW" -m "chore: release v$NEW"
+          elif [ "$STATUS" = "404" ]; then
+            echo "Version $CURRENT not yet on PyPI — publishing as-is"
+            git tag -a "v$CURRENT" -m "chore: release v$CURRENT"
+          else
+            echo "PyPI version check failed (HTTP $STATUS)" >&2
+            exit 1
+          fi
 
       - name: Build distribution
         run: python -m build
@@ -67,4 +81,6 @@ jobs:
         run: twine upload dist/*
 
       - name: Push version bump and tag
-        run: git push --follow-tags
+        run: |
+          git push --follow-tags
+          git push origin --tags
