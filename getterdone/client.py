@@ -257,7 +257,10 @@ class GetterDone:
         A successful call proves credentials are valid; ``ready: True`` means the
         Agent Owner setup is complete (KYC + vaulted card + active funding token)
         and ``create_task`` will not fail with 402 NO_FUNDING_TOKEN. When not
-        ready, surface ``onboardingUrl`` to the owner.
+        ready, surface ``onboardingUrl`` to the owner. When ready, ``recurring``
+        tells you whether you can keep posting without another human step (False =
+        single-use, consumed by your next task) and ``perTaskLimitUsd`` is the
+        token's per-task ceiling (``create_task`` fails if reward + fee exceeds it).
         """
         return self._request("GET", "/api/agents/funding-status")
 

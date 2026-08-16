@@ -7,7 +7,7 @@ without changing the underlying ``Dict[str, Any]`` wire format.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     pass
@@ -34,6 +34,15 @@ class FundingStatus(TypedDict, total=False):
 
     onboardingUrl: str
     """Present only when not ready — Agent Owner setup deep-link pre-filled for this agent."""
+
+    recurring: bool
+    """Present only when ready. ``False`` = single-use token, consumed by your next task
+    (the owner must issue a new one before you can post again); ``True`` = stays active
+    across tasks, so you can post repeatedly without another human step."""
+
+    perTaskLimitUsd: Optional[float]
+    """Present only when ready. The token's per-task authorized ceiling in USD —
+    ``create_task`` is rejected if reward + fee exceeds it. ``None`` when no limit was set."""
 
 
 class BalanceResult(TypedDict):

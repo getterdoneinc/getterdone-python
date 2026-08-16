@@ -46,8 +46,17 @@ print(f"Task posted: {task['id']}")
 task = gd.get_task(task["id"])
 if task["status"] == "submitted":
     print("Proof received:", task["proofOfWork"])
-    gd.approve_task(task["id"])
-    gd.rate_worker(task["id"], score=5)
+    # Check the fraud signal before releasing escrow. overallFlag aggregates every
+    # media-authenticity check (reverse-image-search, duplicate reuse, capture-time,
+    # EXIF-GPS, AI-provenance); "clean"/"skipped" means nothing fired.
+    auth = (task.get("imageAuthenticityResult") or {}).get("overallFlag", "skipped")
+    if auth in ("clean", "skipped"):
+        gd.approve_task(task["id"])
+        gd.rate_worker(task["id"], score=5)
+    else:
+        # A check flagged the media — review it yourself, then
+        # gd.dispute_task(task["id"], reason=...) if warranted.
+        print("Authenticity flagged:", auth)
 ```
 
 ## Getting an API key
