@@ -15,8 +15,10 @@ Usage:
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
+import sys
 import time
 import threading
 from typing import Any, Dict, List, Optional, TypedDict
@@ -25,6 +27,7 @@ import urllib.error
 import urllib.parse
 import json as _json
 
+from ._version import __version__
 from .types import BalanceResult, FundingStatus
 from .exceptions import (
     GetterDoneError,
@@ -41,6 +44,55 @@ from .exceptions import (
 )
 
 _BASE_URL = "https://getterdone.ai"
+
+# The API's reviewCriteria keys are camelCase. The SDK accepts snake_case too
+# and normalizes, but any OTHER key is rejected loudly: the server silently
+# drops unknown keys, which would disable that proof requirement without any
+# error — a fail-open on a fraud control (DevX cell-5 finding).
+_REVIEW_CRITERIA_KEYS = {
+    "keywords": "keywords",
+    "minImages": "minImages",
+    "min_images": "minImages",
+    "minVideos": "minVideos",
+    "min_videos": "minVideos",
+    "minTextLength": "minTextLength",
+    "min_text_length": "minTextLength",
+}
+
+
+def _normalize_review_criteria(criteria: Dict[str, Any]) -> Dict[str, Any]:
+    normalized: Dict[str, Any] = {}
+    for key, value in criteria.items():
+        canonical = _REVIEW_CRITERIA_KEYS.get(key)
+        if canonical is None:
+            raise ValueError(
+                f"Unknown review_criteria key {key!r}. Valid keys: keywords, "
+                "minImages/min_images, minVideos/min_videos, minTextLength/min_text_length. "
+                "(The server silently drops unknown keys, which would disable that "
+                "proof requirement — refusing instead.)"
+            )
+        normalized[canonical] = value
+    return normalized
+
+
+def _solve_pow(nonce: str, difficulty_bits: int) -> str:
+    """Solve the registration reverse-CAPTCHA.
+
+    Finds a hex candidate such that SHA-256(nonce + candidate) has at least
+    ``difficulty_bits`` leading zero bits. Difficulty 22 ≈ 4M hashes ≈ a few
+    seconds in pure Python — bounded well under the challenge's 2-minute TTL.
+    """
+    full_bytes, rem_bits = divmod(difficulty_bits, 8)
+    prefix = nonce.encode("utf-8")
+    i = 0
+    while True:
+        candidate = format(i, "x")
+        digest = hashlib.sha256(prefix + candidate.encode("ascii")).digest()
+        if digest[:full_bytes] == b"\x00" * full_bytes and (
+            rem_bits == 0 or (digest[full_bytes] >> (8 - rem_bits)) == 0
+        ):
+            return candidate
+        i += 1
 
 
 class CancelTaskResult(TypedDict):
@@ -96,17 +148,20 @@ class GetterDone:
         timeout: int = 30,
     ):
         key = api_key or os.environ.get("GETTERDONE_API_KEY")
-        if not key:
-            raise AuthenticationError(
-                "No API key provided. Set GETTERDONE_API_KEY or pass api_key= to GetterDone()."
-            )
-
-        if ":" not in key:
+        # No credentials is a valid (limited) mode: unauthenticated calls like
+        # check_agent_name() and the register() classmethod must work BEFORE an
+        # agent has credentials (DevX cell-5: the pre-registration name check
+        # was unreachable without a placeholder key). Authenticated calls raise
+        # AuthenticationError at request time instead.
+        if key is not None and ":" not in key:
             raise AuthenticationError(
                 "Invalid GETTERDONE_API_KEY format. Expected 'gd_<clientId>:<clientSecret>'."
             )
 
-        client_id, client_secret = key.split(":", 1)
+        if key:
+            client_id, client_secret = key.split(":", 1)
+        else:
+            client_id = client_secret = None
         self._client_id = client_id
         self._client_secret = client_secret
         self._base_url = base_url.rstrip("/")
@@ -120,6 +175,12 @@ class GetterDone:
 
     def _get_token(self) -> str:
         """Return a valid Bearer token, refreshing if necessary."""
+        if not self._client_id or not self._client_secret:
+            raise AuthenticationError(
+                "No API key provided. Set GETTERDONE_API_KEY or pass api_key= to GetterDone(). "
+                "(Only unauthenticated calls like check_agent_name() and GetterDone.register() "
+                "work without credentials.)"
+            )
         with self._token_lock:
             if self._token and time.time() < self._token_expires_at - 120:
                 return self._token
@@ -155,7 +216,14 @@ class GetterDone:
             if filtered:
                 url = f"{url}?{urllib.parse.urlencode(filtered)}"
 
-        headers: Dict[str, str] = {"Content-Type": "application/json"}
+        # An explicit User-Agent is REQUIRED: without one, stdlib sends
+        # "Python-urllib/3.x", which Cloudflare's browser-integrity rule blocks
+        # with 403 error 1010 — every SDK call fails on a clean environment
+        # (DevX cell-5 finding, verified by UA bisection against curl).
+        headers: Dict[str, str] = {
+            "Content-Type": "application/json",
+            "User-Agent": f"getterdone-python/{__version__}",
+        }
         if authenticated:
             headers["Authorization"] = f"Bearer {self._get_token()}"
 
@@ -369,19 +437,25 @@ class GetterDone:
                              Use ``{"lat": 0, "lng": 0, "label": "Remote", "remote": True}``
                              for non-physical tasks.
         category : str       One of the 20 canonical server categories:
-                             Verification, Inspection, Mystery Shopping, Promotion,
-                             Proofreading, Video, Voice & Audio, Social Media,
-                             Data Collection, Research, Delivery, Translation,
-                             Testing, Photography, Transcription, Annotation,
-                             Moderation, Recruitment, Surveying, Other
+                             General, Research, Data Entry, Writing, Design,
+                             Photography, Delivery, Handyman, Errands, Translation,
+                             Customer Service, Verification, Inspection,
+                             Mystery Shopping, Promotion, Proofreading, Video,
+                             Voice & Audio, Social Media, Other.
+                             (Any other value is rejected by the API. The server
+                             default is "General"; this SDK defaults to "Other".)
         expires_in_hours : float   Deadline in hours from now (0.5–720, default 24).
                                    Values >144 (6 days) require Established or Business
                                    owner-account standing (earned via track record / KYB;
                                    403 LONG_DEADLINE_REQUIRES_VERIFICATION otherwise).
         tags : list[str]           Optional labels for searchability (max 10 tags, each max
                                    50 characters, no HTML). Searched by the q= filter on list_tasks.
-        review_criteria : dict     ``{"keywords"?: list, "min_images"?: int, "min_videos"?: int,
-                                    "min_text_length"?: int}``
+        review_criteria : dict     ``{"keywords"?: list, "minImages"?: int, "minVideos"?: int,
+                                    "minTextLength"?: int}`` — the API takes camelCase.
+                                   snake_case keys (``min_images`` etc.) are accepted and
+                                   normalized for you; unknown keys raise ``ValueError``
+                                   rather than being silently dropped by the server
+                                   (a dropped key would disable that proof requirement).
         min_trust_score : int      Minimum worker trust score 0–100 (default 0)
         private_description : str  Additional instructions visible ONLY to the posting agent and
                                    payout-onboarded (KYC-verified) workers.
@@ -398,7 +472,7 @@ class GetterDone:
         if tags:
             body["tags"] = tags
         if review_criteria:
-            body["reviewCriteria"] = review_criteria
+            body["reviewCriteria"] = _normalize_review_criteria(review_criteria)
         if min_trust_score is not None:
             body["minTrustScore"] = min_trust_score
         if private_description is not None:
@@ -591,8 +665,14 @@ class GetterDone:
     # ─── Workers ──────────────────────────────────────────────────────────────
 
     def get_worker_profile(self, worker_id: str) -> Dict[str, Any]:
-        """Return a worker's public trust tier, rating, and task history."""
-        return self._request("GET", f"/api/workers/{worker_id}/profile", authenticated=False)
+        """Return a worker's public trust tier, rating, and task history.
+
+        Requires authentication — the endpoint is gated to logged-in humans and
+        authenticated agents. (This method previously passed
+        ``authenticated=False`` and therefore returned 401 for every caller;
+        DevX cell-5 finding.)
+        """
+        return self._request("GET", f"/api/workers/{worker_id}/profile")
 
     # ─── Platform ────────────────────────────────────────────────────────────
 
@@ -629,7 +709,11 @@ class GetterDone:
     # ─── Convenience ──────────────────────────────────────────────────────────
 
     def check_agent_name(self, name: str) -> bool:
-        """Return True if the agent name is available."""
+        """Return True if the agent name is available.
+
+        Unauthenticated — works on a credential-less client, so you can check
+        a name BEFORE registering (``GetterDone().check_agent_name(...)``).
+        """
         result = self._request(
             "GET",
             "/api/auth/agent/check-name",
@@ -637,3 +721,68 @@ class GetterDone:
             authenticated=False,
         )
         return result.get("available", False)
+
+    @classmethod
+    def register(
+        cls,
+        name: str,
+        environment: Optional[str] = None,
+        base_url: str = _BASE_URL,
+        timeout: int = 30,
+    ) -> Dict[str, Any]:
+        """Register a new agent via the reverse-CAPTCHA proof-of-work flow.
+
+        Solves the SHA-256 PoW challenge and registers ``name``, returning the
+        one-time credentials — persist them immediately, the ``clientSecret``
+        and ``apiKey`` are never shown again::
+
+            creds = GetterDone.register("MyAgent")
+            # store creds["apiKey"] securely, then:
+            gd = GetterDone(api_key=creds["apiKey"])
+
+        Returns the registration payload: ``{"agent": {...}, "clientId": ...,
+        "clientSecret": ..., "apiKey": "<clientId>:<clientSecret>"}``.
+
+        Raises ``ConflictError`` if the name is taken (check first with
+        ``GetterDone().check_agent_name(name)``).
+        """
+        # Always credential-less: registration precedes credentials, and must
+        # work even if an (unrelated or malformed) GETTERDONE_API_KEY is set.
+        client = cls.__new__(cls)
+        cls._init_credentialless(client, base_url, timeout)
+
+        challenge = client._request("GET", "/api/auth/agent/challenge", authenticated=False)
+        nonce = challenge["nonce"]
+        difficulty = int(challenge["difficulty"])
+
+        start = time.time()
+        solution = _solve_pow(nonce, difficulty)
+        timing_ms = int((time.time() - start) * 1000)
+
+        env = environment or f"python:{sys.version_info.major}"
+        return client._request(
+            "POST",
+            "/api/auth/agent/register",
+            body={
+                "name": name,
+                "challengeId": challenge["challengeId"],
+                "solution": solution,
+                # Honest measured duration — the server accepts fast legitimate
+                # solves (the old >=50ms floor was removed; it only rejected
+                # honest speed, since challenges are one-shot).
+                "timing": timing_ms,
+                "environment": env,
+            },
+            authenticated=False,
+        )
+
+    @staticmethod
+    def _init_credentialless(client: "GetterDone", base_url: str, timeout: int) -> None:
+        """Init helper that ignores any ambient GETTERDONE_API_KEY env var."""
+        client._client_id = None
+        client._client_secret = None
+        client._base_url = base_url.rstrip("/")
+        client._timeout = timeout
+        client._token = None
+        client._token_expires_at = 0
+        client._token_lock = threading.Lock()

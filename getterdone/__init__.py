@@ -54,4 +54,4 @@ __all__ = [
     "BalanceResult",
 ]
 
-__version__ = "1.1.0"
+from ._version import __version__  # noqa: E402,F401 — single-sourced from installed dist metadata
