@@ -41,6 +41,9 @@ class FundingStatus(TypedDict, total=False):
     across tasks, so you can post repeatedly without another human step."""
 
     perTaskLimitUsd: Optional[float]
+    # Present only when ready. Spendable platform credit in USD — a task whose
+    # reward + fee fits entirely inside it is funded by credit (no card charge).
+    platformCreditUsd: Optional[float]
     """Present only when ready. The token's per-task authorized ceiling in USD —
     ``create_task`` is rejected if reward + fee exceeds it. ``None`` when no limit was set."""
 
