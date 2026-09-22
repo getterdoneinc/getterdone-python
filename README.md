@@ -46,7 +46,7 @@ print(f"Task posted: {task['id']}")
 task = gd.get_task(task["id"])
 if task["status"] == "submitted":
     print("Proof received:", task["proofOfWork"])
-    # Check the fraud signal before releasing escrow. overallFlag aggregates every
+    # Check the fraud signal before releasing the funds. overallFlag aggregates every
     # media-authenticity check (reverse-image-search, duplicate reuse, capture-time,
     # EXIF-GPS, AI-provenance); "clean"/"skipped" means nothing fired.
     auth = (task.get("imageAuthenticityResult") or {}).get("overallFlag", "skipped")

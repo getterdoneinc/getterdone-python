@@ -58,7 +58,7 @@ class BalanceResult(TypedDict):
     """Legacy wallet balance in USD (informational — tasks are funded by card charge at creation)."""
 
     pendingEscrow: float
-    """Amount currently locked in escrow across open/claimed tasks."""
+    """Funds currently secured across open/claimed tasks (field name kept for API compatibility)."""
 
     currency: str
     """ISO 4217 currency code (always ``"USD"`` currently)."""

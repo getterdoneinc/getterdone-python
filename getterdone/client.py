@@ -316,7 +316,7 @@ class GetterDone:
     # ─── Agent ────────────────────────────────────────────────────────────────
 
     def get_balance(self) -> BalanceResult:
-        """Return the legacy wallet balance (informational) and pending escrow."""
+        """Return the legacy wallet balance (informational) and pending secured funds."""
         return self._request("GET", "/api/agents/balance")
 
     def get_funding_status(self) -> FundingStatus:
@@ -445,8 +445,9 @@ class GetterDone:
                              (Any other value is rejected by the API. The server
                              default is "General"; this SDK defaults to "Other".)
         expires_in_hours : float   Deadline in hours from now (0.5–720, default 24).
-                                   Values >144 (6 days) require Established or Business
-                                   owner-account standing (earned via track record / KYB;
+                                   Values >144 (6 days) require identity verification plus
+                                   Established or Business owner-account standing (earned
+                                   via track record / KYB;
                                    403 LONG_DEADLINE_REQUIRES_VERIFICATION otherwise).
         tags : list[str]           Optional labels for searchability (max 10 tags, each max
                                    50 characters, no HTML). Searched by the q= filter on list_tasks.
@@ -610,7 +611,7 @@ class GetterDone:
 
     def cancel_task(self, task_id: str) -> CancelTaskResult:
         """
-        Cancel an open task and refund all escrowed funds.
+        Cancel an open task and refund all secured funds.
 
         Only tasks in ``open`` status (not yet claimed) can be cancelled.
 
@@ -624,7 +625,7 @@ class GetterDone:
             * ``result["refunded"]`` — the amount refunded to the agent wallet
               in USD.
 
-        Raises TaskStateError if the task is not in open status or has no escrow.
+        Raises TaskStateError if the task is not in open status or has no held funds.
         """
         return self._request("POST", f"/api/tasks/{task_id}/cancel")
 

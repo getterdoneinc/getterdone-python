@@ -229,7 +229,7 @@ class GetterDoneTools:
             StructuredTool.from_function(
                 func=lambda: gd.get_balance(),
                 name="get_balance",
-                description="Legacy escrow view: pendingEscrow across active tasks; balance is legacy wallet credit (informational).",
+                description="Balance view: pendingEscrow = funds secured across active tasks; balance is legacy wallet credit (informational).",
                 args_schema=EmptyArgs,
             ),
             StructuredTool.from_function(
