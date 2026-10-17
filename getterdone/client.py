@@ -341,8 +341,10 @@ class GetterDone:
         return self._request("POST", "/api/agents/fund", body={"amount": amount})
 
     def get_reputation(self, agent_id: Optional[str] = None) -> Dict[str, Any]:
-        """Return agent reputation and reliability tier. Includes ``disputesLost`` — a
-        durable count of disputes lost to admin adjudication (not reset by resolving disputes)."""
+        """Return agent reputation and reliability tier. Includes ``decidedTasks``,
+        ``disputesLost`` — a durable count of disputes lost to admin adjudication (not reset by
+        resolving disputes) — and ``lossRate`` (``disputesLost / decidedTasks``), which is what the
+        tier and the Proven badge key on; ``disputeRate`` (disputes raised) is informational."""
         if agent_id:
             return self._request("GET", f"/api/agents/{agent_id}/reputation")
         me = self.get_me()
