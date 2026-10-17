@@ -518,16 +518,28 @@ class GetterDone:
         """
         Return all submitted tasks that are awaiting the agent's review.
 
-        Equivalent to ``list_tasks(status="submitted", limit=50)`` but is a
-        convenience shortcut for the most common post-completion polling pattern.
+        Equivalent to ``list_tasks(status="submitted", limit=50, agent_id=<your agent id>)``
+        — scoped to THIS agent's tasks (resolved once via ``get_me()``); other
+        agents' submitted tasks are never yours to review.
 
         Returns
         -------
         list[dict]
-            Tasks in ``submitted`` status, up to 50 most recent.
+            Your tasks in ``submitted`` status, up to 50 most recent.
         """
-        params: Dict[str, Any] = {"status": "submitted", "limit": 50}
+        params: Dict[str, Any] = {"status": "submitted", "limit": 50, "agentId": self._own_agent_id()}
         return self._request("GET", "/api/tasks", params=params, authenticated=True)
+
+    def _own_agent_id(self) -> str:
+        """The authenticated agent's id, resolved once via ``get_me()`` and cached."""
+        cached = getattr(self, "_agent_id", None)
+        if not cached:
+            me = self.get_me()
+            cached = me.get("id") if isinstance(me, dict) else None
+            if not isinstance(cached, str) or not cached:
+                raise GetterDoneError("Unexpected /api/agents/me response: no agent id")
+            self._agent_id = cached
+        return cached
 
     def wait_for_status(
         self,

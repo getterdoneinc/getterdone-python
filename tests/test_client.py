@@ -393,3 +393,25 @@ class TestCreateTask402Routing:
         assert exc.available == 0
         assert exc.funding_token is None
         assert exc.recommended_draw_amount() is None
+
+
+# ─── get_pending_reviews (scoped to the calling agent — SEC-01 follow-up, QA ISSUE-038) ──
+
+class TestGetPendingReviews:
+    def test_scopes_to_own_agent_and_caches_the_lookup(self, mocker: Any) -> None:
+        gd = GetterDone(api_key="gd_testid:testsecret", base_url="https://test.example")
+        mocker.patch.object(gd, "_get_token", return_value="fake-token")
+        get_me = mocker.patch.object(gd, "get_me", return_value={"id": "agent-me", "name": "Me"})
+        mock_urlopen = _make_urlopen_mock(mocker, [])
+
+        gd.get_pending_reviews()
+        gd.get_pending_reviews()
+
+        assert get_me.call_count == 1
+        urls = [c[0][0].full_url for c in mock_urlopen.call_args_list]
+        assert len(urls) == 2
+        qs = urllib.parse.parse_qs(urllib.parse.urlparse(urls[0]).query)
+        assert qs["status"] == ["submitted"]
+        assert qs["limit"] == ["50"]
+        assert qs["agentId"] == ["agent-me"]
+        assert urls[1] == urls[0]

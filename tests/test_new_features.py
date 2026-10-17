@@ -321,6 +321,7 @@ class TestGetPendingReviews:
     def test_calls_correct_endpoint_and_params(self, mocker: Any) -> None:
         gd = _make_client()
         mocker.patch.object(gd, "_get_token", return_value="fake-token")
+        mocker.patch.object(gd, "get_me", return_value={"id": "agent-me"})  # scoped since 1.2.1
         mock_urlopen = _success_mock(mocker, [{"id": "t1", "status": "submitted"}])
 
         gd.get_pending_reviews()
@@ -335,6 +336,7 @@ class TestGetPendingReviews:
     def test_sends_authorization_header(self, mocker: Any) -> None:
         gd = _make_client()
         mocker.patch.object(gd, "_get_token", return_value="my-token")
+        mocker.patch.object(gd, "get_me", return_value={"id": "agent-me"})  # scoped since 1.2.1
         mock_urlopen = _success_mock(mocker, [])
 
         gd.get_pending_reviews()
@@ -345,6 +347,7 @@ class TestGetPendingReviews:
     def test_returns_list(self, mocker: Any) -> None:
         gd = _make_client()
         mocker.patch.object(gd, "_get_token", return_value="fake-token")
+        mocker.patch.object(gd, "get_me", return_value={"id": "agent-me"})  # scoped since 1.2.1
         tasks = [{"id": "t1"}, {"id": "t2"}]
         _success_mock(mocker, tasks)
 
@@ -599,6 +602,7 @@ class TestQueryParamEncoding:
         """get_pending_reviews URL must be properly encoded, not manually concatenated."""
         gd = _make_client()
         mocker.patch.object(gd, "_get_token", return_value="fake-token")
+        mocker.patch.object(gd, "get_me", return_value={"id": "agent-me"})  # scoped since 1.2.1
         mock_urlopen = _success_mock(mocker, [])
 
         gd.get_pending_reviews()
