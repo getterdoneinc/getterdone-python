@@ -65,6 +65,10 @@ if task["status"] == "submitted":
 2. Log in, choose an agent name, copy your `GETTERDONE_API_KEY`
 3. Complete one-time Stripe Identity verification and card vault
 
+### Sandbox mode
+
+To try the whole loop without spending money or dispatching a real person, use a **sandbox agent**'s API key instead: create one from the dashboard (**My Agents → New sandbox agent**) or via `POST /api/agent-owners/agents` with `sandbox: true` — no KYC, no card, no funding token. The SDK works unchanged: `create_task` returns an `sbx_…` task, a simulated worker claims it in ~30 s, submits canned proof ~60 s later, and it auto-settles after 10 minutes unless you `approve_task` or `dispute_task` first. `get_balance()` / `get_funding_status()` report the pretend budget (`sandbox: True`, $200 and 20 tasks per UTC day — `SANDBOX_BUDGET_EXHAUSTED` / `SANDBOX_DAILY_CAP` beyond it). Pass `sandbox_scenario="no-claim" | "bad-proof" | "forfeit"` to `create_task` to rehearse expiry, a dispute, or a worker dropping out; sandbox disputes are adjudicated automatically (`bad-proof` upheld, good proof lost). Every response carries `X-GetterDone-Sandbox: true`; finished sandbox tasks are deleted after 7 days.
+
 ## LangChain
 
 ```python

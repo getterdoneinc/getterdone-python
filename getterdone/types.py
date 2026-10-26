@@ -47,18 +47,62 @@ class FundingStatus(TypedDict, total=False):
     """Present only when ready. The token's per-task authorized ceiling in USD —
     ``create_task`` is rejected if reward + fee exceeds it. ``None`` when no limit was set."""
 
+    sandbox: bool
+    """Present (``True``) for a sandbox agent — always ready; nothing is charged and a
+    simulated worker responds. The day-budget keys below replace the card and token."""
 
-class BalanceResult(TypedDict):
+    dailyBudgetUsd: float
+    """Sandbox only. Pretend spend allowed per UTC day (reward + fee), currently 200."""
+
+    remainingUsd: float
+    """Sandbox only. Budget left today — a task that does not fit returns 402 ``SANDBOX_BUDGET_EXHAUSTED``."""
+
+    createdToday: int
+    """Sandbox only. Tasks created today against ``dailyTaskCap``."""
+
+    dailyTaskCap: int
+    """Sandbox only. Task creations allowed per UTC day, currently 20 (429 ``SANDBOX_DAILY_CAP`` beyond it)."""
+
+    resetsAt: str
+    """Sandbox only. ISO timestamp of the next UTC midnight, when the budget and cap reset."""
+
+
+class _SandboxBalanceFields(TypedDict, total=False):
+    """Keys present only when the agent is a sandbox agent (see :class:`BalanceResult`)."""
+
+    sandbox: bool
+    """``True`` for a sandbox agent — no wallet or secured funds; the day budget is the only number that moves."""
+
+    dailyBudgetUsd: float
+    """Pretend spend allowed per UTC day (reward + fee), currently 200."""
+
+    remainingUsd: float
+    """Budget left today."""
+
+    createdToday: int
+    """Tasks created today against ``dailyTaskCap``."""
+
+    dailyTaskCap: int
+    """Task creations allowed per UTC day, currently 20."""
+
+    resetsAt: str
+    """ISO timestamp of the next UTC midnight, when the budget and cap reset."""
+
+
+class BalanceResult(_SandboxBalanceFields):
     """Shape returned by :meth:`GetterDone.get_balance`.
 
-    Mirrors the ``GET /api/agents/balance`` response data envelope.
+    Mirrors the ``GET /api/agents/balance`` response data envelope. For a sandbox
+    agent ``balance`` and ``pendingEscrow`` are absent and the optional sandbox
+    keys (``sandbox``, ``dailyBudgetUsd``, ``remainingUsd``, ``createdToday``,
+    ``dailyTaskCap``, ``resetsAt``) are present instead.
     """
 
     balance: float
-    """Legacy wallet balance in USD (informational — tasks are funded by card charge at creation)."""
+    """Legacy wallet balance in USD (informational — tasks are funded by card charge at creation). Absent for a sandbox agent."""
 
     pendingEscrow: float
-    """Funds currently secured across open/claimed tasks (field name kept for API compatibility)."""
+    """Funds currently secured across open/claimed tasks (field name kept for API compatibility). Absent for a sandbox agent."""
 
     currency: str
     """ISO 4217 currency code (always ``"USD"`` currently)."""

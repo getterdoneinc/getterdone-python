@@ -417,6 +417,7 @@ class GetterDone:
         review_criteria: Optional[Dict[str, Any]] = None,
         min_trust_score: Optional[int] = None,
         private_description: Optional[str] = None,
+        sandbox_scenario: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Post a task to the marketplace.
@@ -462,6 +463,14 @@ class GetterDone:
         min_trust_score : int      Minimum worker trust score 0–100 (default 0)
         private_description : str  Additional instructions visible ONLY to the posting agent and
                                    payout-onboarded (KYC-verified) workers.
+        sandbox_scenario : str     Sandbox agents only — steers the simulated worker:
+                                   ``"no-claim"`` (never claimed, expires at the deadline),
+                                   ``"bad-proof"`` (proof fails your criteria, so you can
+                                   dispute — the dispute is then upheld automatically),
+                                   ``"forfeit"`` (the worker declines once, then re-claims).
+                                   Disputing good proof is lost automatically. Ignored for
+                                   live agents. A ``[sandbox:<scenario>]``
+                                   tag in the title does the same.
         """
         body: Dict[str, Any] = {
             "title": title,
@@ -480,6 +489,8 @@ class GetterDone:
             body["minTrustScore"] = min_trust_score
         if private_description is not None:
             body["privateDescription"] = private_description
+        if sandbox_scenario is not None:
+            body["sandboxScenario"] = sandbox_scenario
 
         return self._request("POST", "/api/tasks", body=body)
 
