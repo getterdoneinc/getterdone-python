@@ -124,7 +124,7 @@ class AgentEvent(TypedDict):
     """Monotonic per-agent sequence number — ordering and gap detection."""
 
     type: str
-    """Event type, e.g. ``"task.submitted"`` or ``"task.expiring_soon"``."""
+    """Event type, e.g. ``"task.submitted"``, ``"task.expiring_soon"`` or ``"task.suspended"``."""
 
     occurredAt: str
     """ISO 8601 timestamp of the event."""
